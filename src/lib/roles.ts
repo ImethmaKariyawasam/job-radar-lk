@@ -122,3 +122,10 @@ export function buildMatcher(query: string): (title: string) => boolean {
     return title.split(/[\/|]/).some(partMatches);
   };
 }
+
+/** Plain phrase to send to search-based sources (e.g. "SSE" -> "senior software engineer"). */
+export function searchPhrase(query: string): string {
+  const raw = query.trim().toLowerCase().replace(/\s+/g, " ");
+  const q = PHRASE_TO_ALIAS[raw] ?? raw;
+  return ROLE_ALIASES[q]?.[0] ?? raw;
+}
