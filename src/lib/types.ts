@@ -13,6 +13,8 @@ export interface Job {
   /** Where the user goes to read and apply */
   url: string;
   source: SourceName;
+  /** Remote job open to Sri Lanka–based candidates (shown in its own section) */
+  remote?: boolean;
 }
 
 export type SourceName =
@@ -24,7 +26,11 @@ export type SourceName =
   | "Rooster"
   | "Careers page"
   | "John Keells careers"
-  | "topjobs.lk";
+  | "topjobs.lk"
+  | "itpro.lk"
+  | "Remotive"
+  | "Jobicy"
+  | "Himalayas";
 
 export interface SourceResult {
   source: string;
