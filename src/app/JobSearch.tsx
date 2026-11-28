@@ -47,6 +47,7 @@ export default function JobSearch({
   const [error, setError] = useState<string | null>(null);
   const [maxTier, setMaxTier] = useState<number>(4);
   const [hideApplied, setHideApplied] = useState(false);
+  const [showRemote, setShowRemote] = useState(true);
   const status = useSyncExternalStore(statusStore.subscribe, statusStore.getSnapshot, statusStore.getServerSnapshot);
 
   const search = useCallback(async (q: string, refresh = false) => {
@@ -68,14 +69,26 @@ export default function JobSearch({
 
   const visible = useMemo(
     () =>
-      (data?.jobs ?? []).filter((j) => j.tier <= maxTier && !(hideApplied && status[j.id] === "applied")),
-    [data, maxTier, hideApplied, status],
+      (data?.jobs ?? []).filter(
+        (j) =>
+          (j.remote ? showRemote : j.tier <= maxTier) && !(hideApplied && status[j.id] === "applied"),
+      ),
+    [data, maxTier, hideApplied, showRemote, status],
   );
 
+  // Local jobs grouped by company tier, then one "Remote" group at the end
   const groups = useMemo(() => {
     const g = new Map<Tier, Job[]>();
-    for (const j of visible) g.set(j.tier, [...(g.get(j.tier) ?? []), j]);
-    return [...g.entries()].sort((a, b) => a[0] - b[0]);
+    const remote: Job[] = [];
+    for (const j of visible) {
+      if (j.remote) remote.push(j);
+      else g.set(j.tier, [...(g.get(j.tier) ?? []), j]);
+    }
+    const sections: { key: string; label: string; jobs: Job[] }[] = [...g.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([tier, jobs]) => ({ key: `t${tier}`, label: TIER_LABEL[tier], jobs }));
+    if (remote.length) sections.push({ key: "remote", label: "Remote · open to Sri Lanka", jobs: remote });
+    return sections;
   }, [visible]);
 
   const appliedCount = Object.values(status).filter((s) => s === "applied").length;
@@ -179,6 +192,15 @@ export default function JobSearch({
             />
             Hide applied ({appliedCount})
           </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={showRemote}
+              onChange={(e) => setShowRemote(e.target.checked)}
+              className="accent-orange-600"
+            />
+            Include remote jobs
+          </label>
           <button
             onClick={() => search(query, true)}
             disabled={loading}
@@ -199,10 +221,14 @@ export default function JobSearch({
 
         {/* Results */}
         <div className={loading ? "opacity-50 transition-opacity" : ""}>
-          {groups.map(([tier, jobs]) => (
-            <section key={tier} className="mt-8">
-              <h2 className="mb-3 flex items-center gap-2 border-l-4 border-orange-600 pl-3 text-sm font-bold uppercase tracking-wide">
-                {TIER_LABEL[tier]} <span className="font-normal normal-case text-zinc-500">· {jobs.length}</span>
+          {groups.map(({ key, label, jobs }) => (
+            <section key={key} className="mt-8">
+              <h2
+                className={`mb-3 flex items-center gap-2 border-l-4 pl-3 text-sm font-bold uppercase tracking-wide ${
+                  key === "remote" ? "border-black" : "border-orange-600"
+                }`}
+              >
+                {label} <span className="font-normal normal-case text-zinc-500">· {jobs.length}</span>
               </h2>
               <ul className="divide-y divide-zinc-200 overflow-hidden rounded-xl border border-zinc-200">
                 {jobs.map((j) => (
@@ -239,7 +265,7 @@ export default function JobSearch({
                     </span>
                     <span className="min-w-0">
                       <span className="block truncate font-medium">{c.name}</span>
-                      {c.note && <span className="block truncate text-xs text-zinc-500">{c.note}</span>}
+                      {c.note && <span className="block text-xs leading-tight text-zinc-500">{c.note}</span>}
                     </span>
                   </span>
                   <span className="flex shrink-0 gap-3">
@@ -267,7 +293,7 @@ export default function JobSearch({
         <footer className="bg-black text-xs text-zinc-400">
           <div className="mx-auto max-w-5xl px-4 py-5 sm:px-6">
             <p>
-              Live data read {new Date(data.fetchedAt).toLocaleTimeString()} (each site at most once every 30 min)
+              Live data read {new Date(data.fetchedAt).toLocaleTimeString()} (local sites at most once every 30 min, remote feeds every 6 h)
               from:{" "}
               {data.sources.map((s, i) => (
                 <span key={s.source}>
@@ -309,7 +335,11 @@ function JobRow({
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${TIER_BADGE[job.tier]}`}>T{job.tier}</span>
+          {job.remote ? (
+            <span className="rounded bg-zinc-900 px-1.5 py-0.5 text-[11px] font-semibold text-orange-400">REMOTE</span>
+          ) : (
+            <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${TIER_BADGE[job.tier]}`}>T{job.tier}</span>
+          )}
           <span className="truncate font-semibold">{job.title}</span>
         </div>
         <div className="mt-0.5 flex flex-wrap gap-x-3 text-sm text-zinc-500">
